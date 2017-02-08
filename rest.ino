@@ -6,6 +6,7 @@
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
+#include <ArduinoJson.h>  // more info: https://github.com/bblanchon/ArduinoJson
 
 
 
@@ -14,6 +15,22 @@
 // Create an instance of the server
 WiFiServer server(LISTEN_PORT);
 boolean isServer = true;
+
+
+/*
+   Metoda vypise JSON, ktory sa posielan na web server
+   @param int water_detected,int battery_voltage,String SN
+*/
+bool sendJsonData(int water_detected, int battery_voltage, String SN) {
+  StaticJsonBuffer<200> jsonBuffer;
+  JsonObject& root = jsonBuffer.createObject();  //schovat do metody sendjsondata
+  root["water_detected"] = water_detected;
+  root["battery_voltage"] = battery_voltage;
+  root["S/N"] = SN;
+  root.printTo(Serial);  // bude potrebne zmenit na clienta
+  // root.prettyPrintTo(Serial);  //pekny vypis na terminal
+}
+
 
 /*
   Metoda vrati hodnotu struingu
@@ -158,23 +175,28 @@ void setup() {
   */
   if (getMode() != 0) {
     isServer = true;
-    //nastavi Nazov Serveru
-    String stringNazovAP = getNazovAP();
-    char charNazovAP[sizeof(stringNazovAP)];
-    stringNazovAP.toCharArray(charNazovAP, sizeof(charNazovAP));
-    //const char *ssid = charNazovAP;
-    Serial.print("Nick: ");
-    const char *ssid = "sladkovicova";
-    Serial.print(ssid);
-    //nastavi heslo AP
-    String stringPassword = getHesloAP();
-    char charPassword[sizeof(stringPassword)];
-    stringPassword.toCharArray(charPassword, sizeof(charPassword));
-    //char *password = charPassword;
-    char *password = "sladkovicova";
-    Serial.print("heslo:");
-    Serial.println(password);
-    WiFi.begin(charNazovAP, charPassword);
+    /*
+      //nastavi Nazov Serveru
+      String stringNazovAP = getNazovAP();
+      char charNazovAP[sizeof(stringNazovAP)];
+      stringNazovAP.toCharArray(charNazovAP, sizeof(charNazovAP));
+      //const char *ssid = charNazovAP;
+      const char *ssid = "sladkovicova";
+      Serial.print(ssid);
+      //nastavi heslo AP
+      String stringPassword = getHesloAP();
+      char charPassword[sizeof(stringPassword)];
+      stringPassword.toCharArray(charPassword, sizeof(charPassword));
+      //char *password = charPassword;
+      char *password = "sladkovicova";
+      Serial.print("heslo:");
+      Serial.println(password);
+
+      WiFi.begin(charNazovAP, charPassword);
+    */
+    //WiFi.mode(WIFI_AP);
+    WiFi.softAP("ESP", "123123123");
+    //WiFi.begin("ESP86", "123123123");
     while (WiFi.status() != 1)
     {
       delay(500);
@@ -194,6 +216,8 @@ void setup() {
   Serial.println(getHesloAP());
   Serial.println(getNazovAP());
   Serial.println(getIntervalRestartu());
+  sendJsonData( 0, 35, "sdasdsad54645g6rfdgdf54we6DSFD5");
+
   SPIFFS.end();
 }
 
@@ -248,7 +272,7 @@ void loop() {
             client.println(prepareHtmlPage(5));
             setIntervalRestartu(5);
             Serial.println("5");
-            
+
             break;
           }
           if (req.indexOf("/interval/6") != -1) {
@@ -282,9 +306,9 @@ void loop() {
   }
 }
 /*
- * Momentalne sa tato metoda nepouziva
- * neni potrebne lebo sa volaju get metody
- */
+   Momentalne sa tato metoda nepouziva
+   neni potrebne lebo sa volaju get metody
+*/
 int zmenInterval(String command) {
   SPIFFS.begin();
   // Get state from command
