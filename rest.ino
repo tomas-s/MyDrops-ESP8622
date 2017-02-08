@@ -15,6 +15,7 @@
 // Create an instance of the server
 WiFiServer server(LISTEN_PORT);
 boolean isServer = true;
+bool isSnConfigurated;
 
 
 /*
@@ -32,8 +33,19 @@ bool sendJsonData(int water_detected, int battery_voltage, String SN) {
 }
 
 /*
- * Metoda ulozi SN zariadenia ktory je vygenerovany zo serveru 
- */
+   Metoda zisti ci je volozene SN
+*/
+bool isSNConfigrated() {
+  SPIFFS.begin();
+  bool result = SPIFFS.exists("/sn.cfg");
+  SPIFFS.end();
+  return result;
+}
+
+
+/*
+   Metoda ulozi SN zariadenia ktory je vygenerovany zo serveru
+*/
 bool saveSN(String data) {
   SPIFFS.begin();
   File f = SPIFFS.open("/sn.cfg", "w");
@@ -48,26 +60,26 @@ bool saveSN(String data) {
   SPIFFS.end();
   Serial.println("File saved");
   return true;
-  }
+}
 
 
 /*
-   Metoda vrati seriove cislo SN, ktore je generovane 
+   Metoda vrati seriove cislo SN, ktore je generovane
 */
 String getSN() {
   String sn = "-1";
+  SPIFFS.begin();
   File f = SPIFFS.open("/sn.cfg", "r");
   if (!f) {
     Serial.println("sn.cfg can not open");
   }
   sn = f.readStringUntil('\n');
   f.close();
+  SPIFFS.end();
   if (sn == "-1") {
     Serial.println("sn filne can not read");
     return "can not read SN number";
   }
-  
-  Serial.println(sn);
   return sn;
 }
 
@@ -75,11 +87,13 @@ String getSN() {
 
 /*
   Metoda vrati hodnotu struingu
+  ak vrati 3 a ine - ESP nebolo konfigurovane
   ak vrati 1 a ine - ESP sa prepne do APmodu
   ak vrati 0 ESP sa prepne do modu wifi clinet
 */
 String getMode() {
   String vystup = "";
+  SPIFFS.begin();
   File f = SPIFFS.open("/config.txt", "r");
   if (!f) {
     Serial.println("file open failed");
@@ -89,6 +103,7 @@ String getMode() {
     vystup = f.readStringUntil('\n');
   }
   f.close();
+  SPIFFS.end();
   return vystup;
 }
 /*
@@ -96,6 +111,7 @@ String getMode() {
 */
 String getHesloAP() {
   String vystup = "";
+  SPIFFS.begin();
   File f = SPIFFS.open("/config.txt", "r");
   if (!f) {
     Serial.println("file open failed");
@@ -105,6 +121,7 @@ String getHesloAP() {
     vystup = f.readStringUntil('\n');
   }
   f.close();
+  SPIFFS.end();
   return vystup;
 }
 
@@ -113,6 +130,7 @@ String getHesloAP() {
 */
 String getNazovAP() {
   String vystup = "";
+  SPIFFS.begin();
   File f = SPIFFS.open("/config.txt", "r");
   if (!f) {
     Serial.println("file open failed");
@@ -122,6 +140,7 @@ String getNazovAP() {
     vystup = f.readStringUntil('\n');
   }
   f.close();
+  SPIFFS.end();
   return vystup;
 }
 /*
@@ -129,12 +148,14 @@ String getNazovAP() {
 */
 String getIntervalRestartu() {
   String interval = "-1";
+  SPIFFS.begin();
   File f = SPIFFS.open("/interval.cfg", "r");
   if (!f) {
     Serial.println("interval.cfg can not open");
   }
   interval = f.readStringUntil('\n');
   f.close();
+  SPIFFS.end();
   if (interval == "-1") {
     Serial.println("Interval can not read");
   }
@@ -143,6 +164,7 @@ String getIntervalRestartu() {
 
 String getRiadok(int n) {
   String vystup = "";
+  SPIFFS.begin();
   File f = SPIFFS.open("/config.txt", "r");
   if (!f) {
     Serial.println("file open failed");
@@ -152,6 +174,7 @@ String getRiadok(int n) {
     vystup = f.readStringUntil('\n');
   }
   f.close();
+  SPIFFS.end();
   return vystup;
 }
 
@@ -176,8 +199,8 @@ String prepareHtmlPage(String i)
   return htmlPage;
 }
 /*
- * ulozi interval restartu do konfiguracneho suboru
- */
+   ulozi interval restartu do konfiguracneho suboru
+*/
 void setIntervalRestartu(int interval) {
 
   SPIFFS.begin();
@@ -199,6 +222,7 @@ void setup() {
   delay(1000);
   Serial.begin(115200);
   SPIFFS.begin();
+
   /*
     //nastavi Nazov AP
     String stringNazovAP = getNazovAP();
@@ -261,7 +285,9 @@ void setup() {
   Serial.println(getNazovAP());
   Serial.println(getIntervalRestartu());
   sendJsonData( 0, 35, "sdasdsad54645g6rfdgdf54we6DSFD5");
+  isSnConfigurated = isSNConfigrated();
   Serial.println(getSN());
+  Serial.println(isSnConfigurated);
 
   SPIFFS.end();
 }
@@ -330,14 +356,21 @@ void loop() {
             setIntervalRestartu(7);
             break;
           }
-          
+
           int index = req.indexOf("/sn/");
-          if (index !=-1) {
-            // tu bol problem ze cely string bol: GET /sn/ahoj%20svet HTTP/1.1 bolo treba parsovat 
-            index+=4;
-            String pom = req.substring(index,(req.length()-9));
+          if (index != -1) {
+            // tu bol problem ze cely string bol: GET /sn/ahoj%20svet HTTP/1.1 bolo treba parsovat
+
+            //ochrana aby sa nemohol prepisat SN
+            if(isSnConfigurated){
+              client.println(prepareHtmlPage("SN is actualy configured"));
+            }
+            else{
+            index += 4;
+            String pom = req.substring(index, (req.length() - 9));
             saveSN(pom);
             client.println(prepareHtmlPage(pom));
+            }
             break;
           }
 
