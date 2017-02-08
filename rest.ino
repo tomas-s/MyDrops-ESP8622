@@ -31,6 +31,47 @@ bool sendJsonData(int water_detected, int battery_voltage, String SN) {
   // root.prettyPrintTo(Serial);  //pekny vypis na terminal
 }
 
+/*
+ * Metoda ulozi SN zariadenia ktory je vygenerovany zo serveru 
+ */
+bool saveSN(String data) {
+  SPIFFS.begin();
+  File f = SPIFFS.open("/sn.cfg", "w");
+  if (!f) {
+    Serial.println("sn.cfg open failed");
+    return false;
+  }
+  Serial.println("====== Writing to sn.cfg file =========");
+  Serial.println(data);
+  f.println(data);
+  f.close();
+  SPIFFS.end();
+  Serial.println("File saved");
+  return true;
+  }
+
+
+/*
+   Metoda vrati seriove cislo SN, ktore je generovane 
+*/
+String getSN() {
+  String sn = "-1";
+  File f = SPIFFS.open("/sn.cfg", "r");
+  if (!f) {
+    Serial.println("sn.cfg can not open");
+  }
+  sn = f.readStringUntil('\n');
+  f.close();
+  if (sn == "-1") {
+    Serial.println("sn filne can not read");
+    return "can not read SN number";
+  }
+  
+  Serial.println(sn);
+  return sn;
+}
+
+
 
 /*
   Metoda vrati hodnotu struingu
@@ -119,23 +160,24 @@ String getRiadok(int n) {
    Metoda vrati HTML request
 */
 // prepare a web page to be send to a client (web browser)
-String prepareHtmlPage(int i)
+String prepareHtmlPage(String i)
 {
   String htmlPage =
     String("HTTP/1.1 200 OK\r\n") +
     "Content-Type: text/html\r\n" +
     "Connection: close\r\n" +  // the connection will be closed after completion of the response
-    "Interval: " + String(i) + "\r\n" + // refresh the page automatically every 5 sec
+    //"Interval: " + String(i) + "\r\n" + // refresh the page automatically every 5 sec
     "\r\n" +
     "<!DOCTYPE HTML>" +
     "<html>" +
-    "Analog input:  " + String(i) +
+    "Vystup :  " + String(i) +
     "</html>" +
     "\r\n";
   return htmlPage;
 }
-
-//opravit moznost ze sa nevlozi integer
+/*
+ * ulozi interval restartu do konfiguracneho suboru
+ */
 void setIntervalRestartu(int interval) {
 
   SPIFFS.begin();
@@ -213,10 +255,13 @@ void setup() {
     Serial.println("Startuje sa wifi client mode");
   }
 
+
+  //testovacie vypisy
   Serial.println(getHesloAP());
   Serial.println(getNazovAP());
   Serial.println(getIntervalRestartu());
   sendJsonData( 0, 35, "sdasdsad54645g6rfdgdf54we6DSFD5");
+  Serial.println(getSN());
 
   SPIFFS.end();
 }
@@ -244,50 +289,61 @@ void loop() {
           Serial.println("koniec vypisu ");
           int val;
           if (req.indexOf("/interval/0") != -1) {
-            client.println(prepareHtmlPage(0));
+            client.println(prepareHtmlPage("0"));
             setIntervalRestartu(0);
             break;
           }
           if (req.indexOf("/interval/1") != -1) {
-            client.println(prepareHtmlPage(1));
+            client.println(prepareHtmlPage("1"));
             setIntervalRestartu(1);
             break;
           }
           if (req.indexOf("/interval/2") != -1) {
-            client.println(prepareHtmlPage(2));
+            client.println(prepareHtmlPage("2"));
             setIntervalRestartu(2);
             break;
           }
           if (req.indexOf("/interval/3") != -1) {
-            client.println(prepareHtmlPage(3));
+            client.println(prepareHtmlPage("3"));
             setIntervalRestartu(3);
             break;
           }
           if (req.indexOf("/interval/4") != -1) {
-            client.println(prepareHtmlPage(4));
+            client.println(prepareHtmlPage("4"));
             setIntervalRestartu(4);
             break;
           }
           if (req.indexOf("/interval/5") != -1) {
-            client.println(prepareHtmlPage(5));
+            client.println(prepareHtmlPage("5"));
             setIntervalRestartu(5);
             Serial.println("5");
 
             break;
           }
           if (req.indexOf("/interval/6") != -1) {
-            client.println(prepareHtmlPage(6));
+            client.println(prepareHtmlPage("6"));
             setIntervalRestartu(6);
             break;
           }
           if (req.indexOf("/interval/7") != -1) {
-            client.println(prepareHtmlPage(7));
+            client.println(prepareHtmlPage("7"));
             setIntervalRestartu(7);
+            break;
+          }
+          
+          int index = req.indexOf("/sn/");
+          if (index !=-1) {
+            // tu bol problem ze cely string bol: GET /sn/ahoj%20svet HTTP/1.1 bolo treba parsovat 
+            index+=4;
+            String pom = req.substring(index,(req.length()-9));
+            saveSN(pom);
+            client.println(prepareHtmlPage(pom));
             break;
           }
 
           else {
-            client.println(prepareHtmlPage(-1));
+            client.println(prepareHtmlPage("Bad request"));
+            Serial.print(req);
             //poterbne osetrit chybu!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             break;
           }
