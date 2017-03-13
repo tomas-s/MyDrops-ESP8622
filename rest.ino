@@ -16,20 +16,77 @@
 WiFiServer server(LISTEN_PORT);
 boolean isServer = true;
 bool isSnConfigurated;
+const char* ssid = "Sladkovicova 90210";
+const char* password = "strcprst";
+const char* host = "85.93.125.205";
+bool succes = false;
+int pocetzlych = 0;
 
 
 /*
    Metoda vypise JSON, ktory sa posielan na web server
    @param int water_detected,int battery_voltage,String SN
 */
-bool sendJsonData(int water_detected, int battery_voltage, String SN) {
+
+void sendJsonData(String DeviceID, int BatteryLife, int state) {
+
+  WiFiClient client;
   StaticJsonBuffer<200> jsonBuffer;
-  JsonObject& root = jsonBuffer.createObject();  //schovat do metody sendjsondata
-  root["water_detected"] = water_detected;
-  root["battery_voltage"] = battery_voltage;
-  root["S/N"] = SN;
-  root.printTo(Serial);  // bude potrebne zmenit na clienta
-  // root.prettyPrintTo(Serial);  //pekny vypis na terminal
+  JsonObject& json = jsonBuffer.createObject();
+  json["DeviceID"] = DeviceID;
+  json["BatteryLife"] = BatteryLife;
+  json["State"] = state;
+  json.printTo(Serial);
+  Serial.println();
+
+
+  Serial.printf("\n[Connecting to %s ... ", host);
+  if (client.connect(host, 8126))
+  {
+    Serial.println("connected]");
+    Serial.println("[Sending a request]");
+
+    client.println("POST /newdata HTTP/1.1");
+    client.print("Host: ");
+    client.println(host);
+    client.println("Content-Type: application/json");
+    int length = json.measureLength();
+    client.print("Content-Length:"); client.println(length);
+    // End of headers
+    client.println();
+    String out;
+    json.printTo(out);
+    client.println(out);
+
+    Serial.println("[Response:]");
+    while (client.connected())
+    {
+      if (client.available())
+      {
+        String line = client.readStringUntil('\n');
+        if (line.indexOf("HTTP/1.1 200 OK") != -1) {
+          succes = true;
+        }
+      }
+    }
+    if (succes == true) {
+      Serial.println("Data boli uspesne odoslane");
+    }
+    else {
+      Serial.println("Data sa nepodarilo odoslat ide restart");
+      //v pripade, ze sa nepodairlo odoslat validne data nastavi ESP na server mode a restartme
+      //setmode(); nasvaime tak aby bol server
+      ESP.deepSleep(500);
+      
+    }
+    client.stop();
+    Serial.println("\n[Disconnected]");
+  }
+  else
+  {
+    Serial.println("connection failed!]");
+    client.stop();
+  }
 }
 
 /*
@@ -87,11 +144,11 @@ String getSN() {
 
 /*
   Metoda vrati hodnotu struingu
-  ak vrati 3 a ine - ESP nebolo konfigurovane
+  ak vrati 3 a ine - ESP nebolo nikdy konfigurovane
   ak vrati 1 a ine - ESP sa prepne do APmodu
   ak vrati 0 ESP sa prepne do modu wifi clinet
 */
-String getMode() {
+int getMode() {
   String vystup = "";
   SPIFFS.begin();
   File f = SPIFFS.open("/config.txt", "r");
@@ -104,7 +161,7 @@ String getMode() {
   }
   f.close();
   SPIFFS.end();
-  return vystup;
+  return vystup.toInt();
 }
 /*
   Metoda vrati hodnotu struingu, ktora je heslo acces  pointu
@@ -215,6 +272,35 @@ void setIntervalRestartu(int interval) {
 
 }
 
+void startAP(){
+  
+    //nastavi Nazov Serveru
+    String stringNazovAP = getNazovAP();
+    char charNazovAP[sizeof(stringNazovAP)];
+    stringNazovAP.toCharArray(charNazovAP, sizeof(charNazovAP));
+    const char *ssid = charNazovAP;
+    //const char *ssid = "sladkovicova";
+    Serial.print("SSID: ");
+    Serial.println(ssid);
+    //nastavi heslo AP
+    String stringPassword = getHesloAP();
+    char charPassword[sizeof(stringPassword)];
+    stringPassword.toCharArray(charPassword, sizeof(charPassword));
+    char *password = charPassword;
+    //char *password = "sladkovicova";
+    Serial.print("heslo:");
+    Serial.println(password);
+    WiFi.softAPdisconnect();
+
+
+    WiFi.softAP(charNazovAP, charPassword);
+  
+
+
+    server.begin();
+    Serial.println("\nHTTP server started");
+}
+
 
 
 
@@ -239,44 +325,31 @@ void setup() {
 
     rest.function("interval", zmenInterval);
   */
+  Serial.println();
+  Serial.print("Mode: ");
+  Serial.println(getMode());
   if (getMode() != 0) {
     isServer = true;
-    /*
-      //nastavi Nazov Serveru
-      String stringNazovAP = getNazovAP();
-      char charNazovAP[sizeof(stringNazovAP)];
-      stringNazovAP.toCharArray(charNazovAP, sizeof(charNazovAP));
-      //const char *ssid = charNazovAP;
-      const char *ssid = "sladkovicova";
-      Serial.print(ssid);
-      //nastavi heslo AP
-      String stringPassword = getHesloAP();
-      char charPassword[sizeof(stringPassword)];
-      stringPassword.toCharArray(charPassword, sizeof(charPassword));
-      //char *password = charPassword;
-      char *password = "sladkovicova";
-      Serial.print("heslo:");
-      Serial.println(password);
-
-      WiFi.begin(charNazovAP, charPassword);
-    */
-    //WiFi.mode(WIFI_AP);
-    WiFi.softAP("ESP", "123123123");
-    //WiFi.begin("ESP86", "123123123");
-    while (WiFi.status() != 1)
-    {
-      delay(500);
-      Serial.print(".");
-      Serial.print(WiFi.status());
-    }
-
-    server.begin();
-    Serial.println("\nHTTP server started");
+    startAP();
 
   }
   else {
     isServer = false;
     Serial.println("Startuje sa wifi client mode");
+    Serial.printf("Connecting to %s ", ssid);
+    WiFi.begin(ssid, password);
+    while ((WiFi.status() != WL_CONNECTED) && (pocetzlych < 30))
+    {
+      delay(500);
+      Serial.print(".");
+      pocetzlych++;
+    }
+    if (pocetzlych > 29) {
+      Serial.println("restart");
+    }
+    Serial.println(" connected");
+    sendJsonData("$2y$10$q0m40L8nRMr.bPoBkk4p7OptBvfa2YSRtTv5uetJ430G/7WYzEdHe", 90, 1);
+
   }
 
 
@@ -284,7 +357,7 @@ void setup() {
   Serial.println(getHesloAP());
   Serial.println(getNazovAP());
   Serial.println(getIntervalRestartu());
-  sendJsonData( 0, 35, "sdasdsad54645g6rfdgdf54we6DSFD5");
+
   isSnConfigurated = isSNConfigrated();
   Serial.println(getSN());
   Serial.println(isSnConfigurated);
@@ -362,14 +435,14 @@ void loop() {
             // tu bol problem ze cely string bol: GET /sn/ahoj%20svet HTTP/1.1 bolo treba parsovat
 
             //ochrana aby sa nemohol prepisat SN
-            if(isSnConfigurated){
+            if (isSnConfigurated) {
               client.println(prepareHtmlPage("SN is actualy configured"));
             }
-            else{
-            index += 4;
-            String pom = req.substring(index, (req.length() - 9));
-            saveSN(pom);
-            client.println(prepareHtmlPage(pom));
+            else {
+              index += 4;
+              String pom = req.substring(index, (req.length() - 9));
+              saveSN(pom);
+              client.println(prepareHtmlPage(pom));
             }
             break;
           }
@@ -393,6 +466,7 @@ void loop() {
       Serial.println("[Client disonnected]");
     }
   }
+
 }
 /*
    Momentalne sa tato metoda nepouziva
