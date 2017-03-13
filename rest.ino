@@ -16,8 +16,8 @@
 WiFiServer server(LISTEN_PORT);
 boolean isServer = true;
 bool isSnConfigurated;
-const char* ssid = "Sladkovicova 90210";
-const char* password = "strcprst";
+const char* ssid = "Internet";
+const char* password = "3krakousek3";
 const char* host = "85.93.125.205";
 bool succes = false;
 int pocetzlych = 0;
@@ -77,7 +77,7 @@ void sendJsonData(String DeviceID, int BatteryLife, int state) {
       //v pripade, ze sa nepodairlo odoslat validne data nastavi ESP na server mode a restartme
       //setmode(); nasvaime tak aby bol server
       ESP.deepSleep(500);
-      
+
     }
     client.stop();
     Serial.println("\n[Disconnected]");
@@ -92,20 +92,21 @@ void sendJsonData(String DeviceID, int BatteryLife, int state) {
 /*
    Metoda zisti ci je volozene SN
 */
-bool isSNConfigrated() {
+bool isDataConfigrated(String path) {
   SPIFFS.begin();
-  bool result = SPIFFS.exists("/sn.cfg");
+  bool result = SPIFFS.exists("/" + path + ".cfg");
   SPIFFS.end();
   return result;
 }
 
 
 /*
-   Metoda ulozi SN zariadenia ktory je vygenerovany zo serveru
+   Metoda ulozi Data do suboru
+   Nazvy suborov: SN, nazovAP, passwordAP, ssidWifi. passwordWifi
 */
-bool saveSN(String data) {
+bool saveData(String path, String data) {
   SPIFFS.begin();
-  File f = SPIFFS.open("/sn.cfg", "w");
+  File f = SPIFFS.open("/" + path + ".cfg", "w");
   if (!f) {
     Serial.println("sn.cfg open failed");
     return false;
@@ -123,10 +124,10 @@ bool saveSN(String data) {
 /*
    Metoda vrati seriove cislo SN, ktore je generovane
 */
-String getSN() {
+String getData(String path) {
   String sn = "-1";
   SPIFFS.begin();
-  File f = SPIFFS.open("/sn.cfg", "r");
+  File f = SPIFFS.open("/" + path + ".cfg", "r");
   if (!f) {
     Serial.println("sn.cfg can not open");
   }
@@ -141,7 +142,6 @@ String getSN() {
 }
 
 
-
 /*
   Metoda vrati hodnotu struingu
   ak vrati 3 a ine - ESP nebolo nikdy konfigurovane
@@ -151,7 +151,7 @@ String getSN() {
 int getMode() {
   String vystup = "";
   SPIFFS.begin();
-  File f = SPIFFS.open("/config.txt", "r");
+  File f = SPIFFS.open("/mode.cfg", "r");
   if (!f) {
     Serial.println("file open failed");
   }
@@ -163,43 +163,8 @@ int getMode() {
   SPIFFS.end();
   return vystup.toInt();
 }
-/*
-  Metoda vrati hodnotu struingu, ktora je heslo acces  pointu
-*/
-String getHesloAP() {
-  String vystup = "";
-  SPIFFS.begin();
-  File f = SPIFFS.open("/config.txt", "r");
-  if (!f) {
-    Serial.println("file open failed");
-  }
 
-  for (int i = 1; i <= 2; i++) {
-    vystup = f.readStringUntil('\n');
-  }
-  f.close();
-  SPIFFS.end();
-  return vystup;
-}
 
-/*
-  Metoda vrati hodnotu struingu, ktora obsahuje nazov Access pointu
-*/
-String getNazovAP() {
-  String vystup = "";
-  SPIFFS.begin();
-  File f = SPIFFS.open("/config.txt", "r");
-  if (!f) {
-    Serial.println("file open failed");
-  }
-
-  for (int i = 1; i <= 3; i++) {
-    vystup = f.readStringUntil('\n');
-  }
-  f.close();
-  SPIFFS.end();
-  return vystup;
-}
 /*
    Metoda vrati interval po akom sa ma restartnut ESP
 */
@@ -217,6 +182,20 @@ String getIntervalRestartu() {
     Serial.println("Interval can not read");
   }
   return interval;
+}
+
+void setIntervalRestartu(int interval) {
+
+  SPIFFS.begin();
+  File fw = SPIFFS.open("/interval.cfg", "w");
+  if (!fw) {
+    Serial.println("interval.cfg can not be open");
+  }
+  fw.print(interval);
+  fw.close();
+  SPIFFS.end();
+  Serial.println("interval restartu bol zmeneny");
+
 }
 
 String getRiadok(int n) {
@@ -258,47 +237,35 @@ String prepareHtmlPage(String i)
 /*
    ulozi interval restartu do konfiguracneho suboru
 */
-void setIntervalRestartu(int interval) {
-
-  SPIFFS.begin();
-  File fw = SPIFFS.open("/interval.cfg", "w");
-  if (!fw) {
-    Serial.println("interval.cfg can not be open");
-  }
-  fw.print(interval);
-  fw.close();
-  SPIFFS.end();
-  Serial.println("interval restartu bol zmeneny");
-
-}
-
-void startAP(){
-  
-    //nastavi Nazov Serveru
-    String stringNazovAP = getNazovAP();
-    char charNazovAP[sizeof(stringNazovAP)];
-    stringNazovAP.toCharArray(charNazovAP, sizeof(charNazovAP));
-    const char *ssid = charNazovAP;
-    //const char *ssid = "sladkovicova";
-    Serial.print("SSID: ");
-    Serial.println(ssid);
-    //nastavi heslo AP
-    String stringPassword = getHesloAP();
-    char charPassword[sizeof(stringPassword)];
-    stringPassword.toCharArray(charPassword, sizeof(charPassword));
-    char *password = charPassword;
-    //char *password = "sladkovicova";
-    Serial.print("heslo:");
-    Serial.println(password);
-    WiFi.softAPdisconnect();
 
 
-    WiFi.softAP(charNazovAP, charPassword);
-  
+void startAP() {
+
+  //nastavi Nazov Serveru
+  String stringNazovAP = getData("nazovAP");
+  char charNazovAP[sizeof(stringNazovAP)];
+  stringNazovAP.toCharArray(charNazovAP, sizeof(charNazovAP));
+  const char *ssid = charNazovAP;
+  //const char *ssid = "sladkovicova";
+  Serial.print("SSID: ");
+  Serial.println(ssid);
+  //nastavi heslo AP
+  String stringPassword = getData("passwordAP");
+  char charPassword[sizeof(stringPassword)];
+  stringPassword.toCharArray(charPassword, sizeof(charPassword));
+  char *password = charPassword;
+  //char *password = "sladkovicova";
+  Serial.print("heslo:");
+  Serial.println(password);
+  WiFi.softAPdisconnect();
 
 
-    server.begin();
-    Serial.println("\nHTTP server started");
+  WiFi.softAP(charNazovAP, charPassword);
+
+
+
+  server.begin();
+  Serial.println("\nHTTP server started");
 }
 
 
@@ -308,7 +275,11 @@ void setup() {
   delay(1000);
   Serial.begin(115200);
   SPIFFS.begin();
-
+  saveData("mode", "1");
+  Serial.println();
+  saveData("SN", "$2y$10$q0m40L8nRMr.bPoBkk4p7OptBvfa2YSRtTv5uetJ430G/7WYzEdHe");
+  Serial.print("SN: ");
+  Serial.println(getData("SN"));
   /*
     //nastavi Nazov AP
     String stringNazovAP = getNazovAP();
@@ -328,6 +299,8 @@ void setup() {
   Serial.println();
   Serial.print("Mode: ");
   Serial.println(getMode());
+
+
   if (getMode() != 0) {
     isServer = true;
     startAP();
@@ -345,22 +318,23 @@ void setup() {
       pocetzlych++;
     }
     if (pocetzlych > 29) {
-      Serial.println("restart");
+      Serial.println("Connection filed \nStarting AP mode");
+      saveData("mode", "1");
+      ESP.deepSleep(1000);
     }
     Serial.println(" connected");
-    sendJsonData("$2y$10$q0m40L8nRMr.bPoBkk4p7OptBvfa2YSRtTv5uetJ430G/7WYzEdHe", 90, 1);
+    sendJsonData("$2y$10$q0m40L8nRMr.bPoBkk4p7OptBvfa2YSRtTv5uetJ430G/7WYzEdHe", 97, 1);
 
   }
 
 
   //testovacie vypisy
-  Serial.println(getHesloAP());
-  Serial.println(getNazovAP());
+  Serial.print("Interval restartu: ");
   Serial.println(getIntervalRestartu());
 
-  isSnConfigurated = isSNConfigrated();
-  Serial.println(getSN());
-  Serial.println(isSnConfigurated);
+  /*isSnConfigurated = isDataConfigrated("SN");
+    Serial.print("Su data configurovane: ");
+  */
 
   SPIFFS.end();
 }
@@ -441,7 +415,7 @@ void loop() {
             else {
               index += 4;
               String pom = req.substring(index, (req.length() - 9));
-              saveSN(pom);
+              saveData("SN", pom);
               client.println(prepareHtmlPage(pom));
             }
             break;
