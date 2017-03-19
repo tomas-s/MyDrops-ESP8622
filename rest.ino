@@ -98,6 +98,8 @@ void sendJsonData(String DeviceID, int BatteryLife, int state) {
 void getStatus() {
   int setup = -1;
   String DeviceID = getData("SN");
+  //String DeviceID = DeviceIdNoParse.substring(0,DeviceIdNoParse.length()-1);
+  Serial.println(DeviceID);
   WiFiClient client;
   StaticJsonBuffer<200> jsonBuffer;
   JsonObject& json = jsonBuffer.createObject();
@@ -271,13 +273,14 @@ bool saveData(String path, String data) {
    Metoda vrati seriove cislo SN, ktore je generovane
 */
 String getData(String path) {
-  String sn = "-1";
+  String snNoParsed = "-1";
   SPIFFS.begin();
   File f = SPIFFS.open("/" + path + ".cfg", "r");
   if (!f) {
     Serial.println("sn.cfg can not open");
   }
-  sn = f.readStringUntil('\n');
+  snNoParsed = f.readStringUntil('\n');
+  String sn = snNoParsed.substring(0,snNoParsed.length()-1);
   f.close();
   SPIFFS.end();
   if (sn == "-1") {
@@ -400,7 +403,7 @@ void startAP() {
   //nastavi heslo AP
   String stringPassword = getData("passwordAP");
   char charPassword[stringPassword.length()];
-  stringPassword.toCharArray(charPassword, stringPassword.length());
+  stringPassword.toCharArray(charPassword, stringPassword.length()+1);
   char *password = charPassword;
   //char *password = "sladkovicova";
   Serial.print("heslo:");
@@ -424,12 +427,20 @@ void setup() {
   SPIFFS.begin();
   getStatus();
   //saveData("mode", "1");  //0 - client
-  //saveData("nazovAP", "ESP");
+  /*
+  saveData("nazovAP", "ESP");
+  String naz = getData("nazovAP");
+  Serial.print("Nazov: ");
+  Serial.println(naz);
   saveData("passwordAP", "123123123");
-  getData("passwordAP");
+  String pass = getData("passwordAP");
+  Serial.print("pass: ");
+  Serial.println(pass);
+  
   //saveData("SN", "$2y$10$q0m40L8nRMr.bPoBkk4p7OptBvfa2YSRtTv5uetJ430G/7WYzEdHe");
   Serial.print("SN: ");
   Serial.println(getData("SN"));
+  */
   /*
     //nastavi Nazov AP
     String stringNazovAP = getNazovAP();
@@ -479,7 +490,8 @@ void setup() {
       }
       else {*/
     Serial.println("Connected to Wifi \n Sending data");
-    sendJsonData(getData("SN"), 94, 1);
+    sendJsonData(getData("SN"), 93, 1);
+    ESP.deepSleep(1000);//tu sa vlozi interval spanku
   }
 
 
