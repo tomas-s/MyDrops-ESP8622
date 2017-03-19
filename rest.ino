@@ -18,9 +18,12 @@ boolean isServer = true;
 bool isSnConfigurated;
 const char* ssid = "Internet";
 const char* password = "3krakousek3";
+//const char* ssid = "Meizu";
+//const char* password = "123123123";
 const char* host = "85.93.125.205";
 bool succes = false;
 int pocetzlych = 0;
+int failedPosts = 0;
 
 
 /*
@@ -89,6 +92,147 @@ void sendJsonData(String DeviceID, int BatteryLife, int state) {
   }
 }
 
+
+
+
+void getStatus() {
+  int setup = -1;
+  String DeviceID = getData("SN");
+  WiFiClient client;
+  StaticJsonBuffer<200> jsonBuffer;
+  JsonObject& json = jsonBuffer.createObject();
+  json["DeviceID"] = DeviceID;
+  Serial.println();
+  Serial.println("vypis JSON");
+  json.printTo(Serial);
+  Serial.println();
+
+
+
+  failedPosts = 0;
+  pocetzlych = 0;
+  Serial.println("Startuje sa wifi client mode");
+  Serial.printf("Connecting to %s ", ssid);
+  Serial.printf("Heslo: %s", password);
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  while ((WiFi.status() != WL_CONNECTED) && (pocetzlych < 40))
+  {
+    delay(500);
+    Serial.print(".");
+    //Serial.print(WiFi.status());
+    pocetzlych++;
+  }
+  if (pocetzlych > 39) {
+    Serial.println("Connection filed \nConfig you AP\nStarting AP mode");
+    saveData("mode", "1");
+
+    //ESP.deepSleep(1000);
+  }
+  else {
+    while ((setup == -1) && (failedPosts < 16)) {
+      failedPosts++;
+      Serial.printf("\n[Connecting to %s ... ", host);
+      if (client.connect(host, 8126))
+      {
+
+        Serial.println("connected]");
+
+        Serial.println("[Sending a request]");
+
+        client.println("POST /api/getsetup HTTP/1.1");
+        client.print("Host: ");
+        client.println(host);
+        client.println("Content-Type: application/json");
+        int length = json.measureLength();
+        client.print("Content-Length:"); client.println(length);
+        // End of headers
+        client.println();
+        String out;
+        json.printTo(out);
+        client.println(out);
+
+        delay(1000);
+        Serial.println("[Response:]");
+        int indexOfLine = 0;
+        /*
+          unsigned long timeoutStart = millis();
+          const int kNetworkTimeout = 30 * 1000;
+          // Number of milliseconds to wait if no data is available before trying again
+          const int kNetworkDelay = 1000;
+          char c;
+          while ( (client.connected() || client.available()) &&
+                ((millis() - timeoutStart) < kNetworkTimeout) )
+          {
+          if (client.available())
+          {
+            c =client.read();
+            // Print out this character
+            Serial.print(c);
+
+            //bodyLen--;
+            // We read something, reset the timeout counter
+            timeoutStart = millis();
+          }
+          else
+          {
+            // We haven't got any data, so let's pause to allow some to
+            // arrive
+            delay(kNetworkDelay);
+          }
+          }
+        */
+
+
+        while (client.connected())
+        {
+          if (client.available())
+          {
+            String line = client.readStringUntil('\n');
+            //Serial.println(line);
+            indexOfLine++;
+
+            if ((line.indexOf("0") != -1) && indexOfLine > 7) {
+              setup = 0;
+            }
+            else {
+              if ((line.indexOf("1") != -1) && indexOfLine > 7) {
+                setup = 1;
+              }
+              else {
+                setup = -1;
+              }
+            }
+          }
+        }
+        Serial.printf("Setup: %d\n", setup);
+        if (setup == 1) {
+          client.stop();
+          Serial.println("\n[Disconnected]");
+          saveData("mode", "1");
+        }
+        if (setup == 0) {
+          saveData("mode", "0");
+        }
+
+
+        client.stop();
+        Serial.println("\n[Disconnected]");
+        //
+      }
+      else
+      {
+        Serial.println("Can not connect to server!]");
+        client.stop();
+        break;
+      }
+    }
+    if (setup == -1) {
+      Serial.printf("Wrong sensor ID - please configurate your device\n");
+    }
+  }
+}
+
 /*
    Metoda zisti ci je volozene SN
 */
@@ -111,12 +255,14 @@ bool saveData(String path, String data) {
     Serial.println("sn.cfg open failed");
     return false;
   }
-  Serial.println("====== Writing to sn.cfg file =========");
+  Serial.println("====== Writing to " + path + ".cfg file =========");
   Serial.println(data);
   f.println(data);
   f.close();
   SPIFFS.end();
-  Serial.println("File saved");
+  Serial.println("========= File saved =========");
+  Serial.println();
+  Serial.println();
   return true;
 }
 
@@ -136,7 +282,7 @@ String getData(String path) {
   SPIFFS.end();
   if (sn == "-1") {
     Serial.println("sn filne can not read");
-    return "can not read SN number";
+    return "can not read " + path + " number";
   }
   return sn;
 }
@@ -207,7 +353,7 @@ String getRiadok(int n) {
   }
 
   for (int i = 1; i <= n; i++) {
-    vystup = f.readStringUntil('\n');
+    vystup = f.readStringUntil('\r');
   }
   f.close();
   SPIFFS.end();
@@ -240,28 +386,29 @@ String prepareHtmlPage(String i)
 
 
 void startAP() {
-
+  WiFi.disconnect();
+  delay(100);
+  WiFi.mode(WIFI_STA);
   //nastavi Nazov Serveru
   String stringNazovAP = getData("nazovAP");
-  char charNazovAP[sizeof(stringNazovAP)];
-  stringNazovAP.toCharArray(charNazovAP, sizeof(charNazovAP));
+  char charNazovAP[stringNazovAP.length()];
+  Serial.println(stringNazovAP);
+  stringNazovAP.toCharArray(charNazovAP, stringNazovAP.length() + 1);
   const char *ssid = charNazovAP;
-  //const char *ssid = "sladkovicova";
   Serial.print("SSID: ");
   Serial.println(ssid);
   //nastavi heslo AP
   String stringPassword = getData("passwordAP");
-  char charPassword[sizeof(stringPassword)];
-  stringPassword.toCharArray(charPassword, sizeof(charPassword));
+  char charPassword[stringPassword.length()];
+  stringPassword.toCharArray(charPassword, stringPassword.length());
   char *password = charPassword;
   //char *password = "sladkovicova";
   Serial.print("heslo:");
   Serial.println(password);
-  WiFi.softAPdisconnect();
+  //WiFi.softAPdisconnect();
 
 
   WiFi.softAP(charNazovAP, charPassword);
-
 
 
   server.begin();
@@ -270,14 +417,17 @@ void startAP() {
 
 
 
-
+//Nazvy suborov: SN, nazovAP, passwordAP, ssidWifi. passwordWifi
 void setup() {
   delay(1000);
   Serial.begin(115200);
   SPIFFS.begin();
-  saveData("mode", "1");
-  Serial.println();
-  saveData("SN", "$2y$10$q0m40L8nRMr.bPoBkk4p7OptBvfa2YSRtTv5uetJ430G/7WYzEdHe");
+  getStatus();
+  //saveData("mode", "1");  //0 - client
+  //saveData("nazovAP", "ESP");
+  saveData("passwordAP", "123123123");
+  getData("passwordAP");
+  //saveData("SN", "$2y$10$q0m40L8nRMr.bPoBkk4p7OptBvfa2YSRtTv5uetJ430G/7WYzEdHe");
   Serial.print("SN: ");
   Serial.println(getData("SN"));
   /*
@@ -304,28 +454,36 @@ void setup() {
   if (getMode() != 0) {
     isServer = true;
     startAP();
-
   }
   else {
     isServer = false;
-    Serial.println("Startuje sa wifi client mode");
-    Serial.printf("Connecting to %s ", ssid);
-    WiFi.begin(ssid, password);
-    while ((WiFi.status() != WL_CONNECTED) && (pocetzlych < 30))
-    {
+
+    /*
+      pocetzlych = 0;
+      Serial.println("Startuje sa wifi client mode");
+      Serial.printf("Connecting to %s ", ssid);
+      Serial.printf("Heslo: %s", password);
+      WiFi.mode(WIFI_STA);
+      WiFi.begin(ssid, password);
+      while ((WiFi.status() != WL_CONNECTED) && (pocetzlych < 40))
+      {
       delay(500);
       Serial.print(".");
+      Serial.print(WiFi.status());
       pocetzlych++;
-    }
-    if (pocetzlych > 29) {
+      }
+      if (pocetzlych > 39) {
       Serial.println("Connection filed \nStarting AP mode");
       saveData("mode", "1");
       ESP.deepSleep(1000);
-    }
-    Serial.println(" connected");
-    sendJsonData("$2y$10$q0m40L8nRMr.bPoBkk4p7OptBvfa2YSRtTv5uetJ430G/7WYzEdHe", 97, 1);
-
+      }
+      else {*/
+    Serial.println("Connected to Wifi \n Sending data");
+    sendJsonData(getData("SN"), 94, 1);
   }
+
+
+
 
 
   //testovacie vypisy
