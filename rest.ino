@@ -185,7 +185,6 @@ void getStatus() {
           }
         */
 
-
         while (client.connected())
         {
           if (client.available())
@@ -517,19 +516,20 @@ void loop() {
     // wait for a client (web browser) to connect
     if (client)
     {
-      Serial.println("\n[Client connected]");
+      int indexOfLine = 0;
+      //Serial.println("\n[Client connected]");
       while (client.connected())
       {
+        //Serial.println("Client Conected()");
         // read line by line what the client (web browser) is requesting
-        if (client.available())
+        if (client.available()) //if
         {
-          String req = client.readStringUntil('\r');
+          String req = client.readStringUntil('\n');
+          indexOfLine++;
           if (req.length() < 1) {
             return;
           }
-          // Serial.println(req);
-
-          Serial.println("koniec vypisu ");
+          //Serial.println(req);
           int val;
           if (req.indexOf("/interval/0") != -1) {
             client.println(prepareHtmlPage("0"));
@@ -574,34 +574,22 @@ void loop() {
             break;
           }
 
-          int index = req.indexOf("/config/");
-          if (index != -1) {
-            //StaticJsonBuffer<200> jsonBuffer;
-            //JsonObject& root = jsonBuffer.parseObject(server.arg("plain"));
-
-
-            /*
-              // tu bol problem ze cely string bol: GET /sn/ahoj%20svet HTTP/1.1 bolo treba parsovat
-
-              //ochrana aby sa nemohol prepisat SN
-              if (isSnConfigurated) {
-              client.println(prepareHtmlPage("SN is actualy configured"));
-              }
-              else {
-              index += 4;
-              String pom = req.substring(index, (req.length() - 9));
-              saveData("SN", pom);
-              client.println(prepareHtmlPage(pom));
-              }
-              break;*/
+          if (indexOfLine > 9 && indexOfLine < 11) {
+            Serial.println(req);
+            Serial.println("Mame JSONN!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+            makeJson(req);
+            client.println("HTTP/1.1 200 OK");
+            //client.println("HTTP/1.1 500 Internal server error");
+            client.stop();
           }
 
-          else {
-            client.println(prepareHtmlPage("Bad request"));
-            Serial.print(req);
-            //poterbne osetrit chybu!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            break;
-          }
+          /*
+                    else {
+                      client.println(prepareHtmlPage("Bad request"));
+                      Serial.print(req);
+                      //poterbne osetrit chybu!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                      break;
+                    }*/
 
 
 
@@ -631,3 +619,42 @@ int zmenInterval(String command) {
   return 1;
 
 }
+
+void makeJson(String json) {
+  /*
+    char buffer[json.length()] ;
+    json.toCharArray(buffer, json.length());
+    Serial.println(buffer);
+  */
+
+  StaticJsonBuffer<200> jsonBuffer;
+  JsonObject& root = jsonBuffer.parseObject(json);
+  Serial.print("Vypis stringu:");
+  Serial.println(json);
+  root.printTo(Serial);
+  Serial.println();
+
+  
+  const char* SN = root["SN"];
+  const char* ssidWifi = root["ssidWifi"];
+  const char* passwordWifi = root["passwordWifi"];
+  const char* passwordAP = root["passwordAP"];
+  const char* interval = root["interval"];
+  Serial.print("Moj vypis SN:");
+  Serial.println(SN);
+  Serial.print("Moj vypis ssidWifi:");
+  Serial.println(ssidWifi);
+  Serial.print("Moj vypis passwordWifi:");
+  Serial.println(passwordWifi);
+  Serial.print("Moj vypis passwordAP:");
+  Serial.println(passwordAP);
+  Serial.print("Moj vypis interval:");
+  Serial.println(interval);
+}
+
+
+
+
+
+
+
