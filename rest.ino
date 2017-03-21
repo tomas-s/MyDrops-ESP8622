@@ -5,7 +5,7 @@
 #include "FS.h"
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
-#include <ESP8266WebServer.h>
+#include <WiFiServer.h>
 #include <ArduinoJson.h>  // more info: https://github.com/bblanchon/ArduinoJson
 
 
@@ -280,7 +280,7 @@ String getData(String path) {
     Serial.println("sn.cfg can not open");
   }
   snNoParsed = f.readStringUntil('\n');
-  String sn = snNoParsed.substring(0,snNoParsed.length()-1);
+  String sn = snNoParsed.substring(0, snNoParsed.length() - 1);
   f.close();
   SPIFFS.end();
   if (sn == "-1") {
@@ -403,7 +403,7 @@ void startAP() {
   //nastavi heslo AP
   String stringPassword = getData("passwordAP");
   char charPassword[stringPassword.length()];
-  stringPassword.toCharArray(charPassword, stringPassword.length()+1);
+  stringPassword.toCharArray(charPassword, stringPassword.length() + 1);
   char *password = charPassword;
   //char *password = "sladkovicova";
   Serial.print("heslo:");
@@ -428,18 +428,18 @@ void setup() {
   getStatus();
   //saveData("mode", "1");  //0 - client
   /*
-  saveData("nazovAP", "ESP");
-  String naz = getData("nazovAP");
-  Serial.print("Nazov: ");
-  Serial.println(naz);
-  saveData("passwordAP", "123123123");
-  String pass = getData("passwordAP");
-  Serial.print("pass: ");
-  Serial.println(pass);
-  
-  //saveData("SN", "$2y$10$q0m40L8nRMr.bPoBkk4p7OptBvfa2YSRtTv5uetJ430G/7WYzEdHe");
-  Serial.print("SN: ");
-  Serial.println(getData("SN"));
+    saveData("nazovAP", "ESP");
+    String naz = getData("nazovAP");
+    Serial.print("Nazov: ");
+    Serial.println(naz);
+    saveData("passwordAP", "123123123");
+    String pass = getData("passwordAP");
+    Serial.print("pass: ");
+    Serial.println(pass);
+
+    //saveData("SN", "$2y$10$q0m40L8nRMr.bPoBkk4p7OptBvfa2YSRtTv5uetJ430G/7WYzEdHe");
+    Serial.print("SN: ");
+    Serial.println(getData("SN"));
   */
   /*
     //nastavi Nazov AP
@@ -574,21 +574,26 @@ void loop() {
             break;
           }
 
-          int index = req.indexOf("/sn/");
+          int index = req.indexOf("/config/");
           if (index != -1) {
-            // tu bol problem ze cely string bol: GET /sn/ahoj%20svet HTTP/1.1 bolo treba parsovat
+            //StaticJsonBuffer<200> jsonBuffer;
+            //JsonObject& root = jsonBuffer.parseObject(server.arg("plain"));
 
-            //ochrana aby sa nemohol prepisat SN
-            if (isSnConfigurated) {
+
+            /*
+              // tu bol problem ze cely string bol: GET /sn/ahoj%20svet HTTP/1.1 bolo treba parsovat
+
+              //ochrana aby sa nemohol prepisat SN
+              if (isSnConfigurated) {
               client.println(prepareHtmlPage("SN is actualy configured"));
-            }
-            else {
+              }
+              else {
               index += 4;
               String pom = req.substring(index, (req.length() - 9));
               saveData("SN", pom);
               client.println(prepareHtmlPage(pom));
-            }
-            break;
+              }
+              break;*/
           }
 
           else {

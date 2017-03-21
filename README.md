@@ -3,4 +3,4 @@
 * Test hlbokeho spanku
 * Send S/N- done []
 * https://github.com/esp8266/Arduino/blob/master/libraries/esp8266/examples/ConfigFile/ConfigFile.ino - dorobit JSON ukladanie
-* 
+* https://github.com/esp8266/Arduino/blob/master/doc/boards.md - zapojenie a nastavenie modov 
