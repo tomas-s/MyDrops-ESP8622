@@ -16,14 +16,16 @@
 WiFiServer server(LISTEN_PORT);
 boolean isServer = true;
 bool isSnConfigurated;
-const char* ssid = "Internet";
-const char* password = "3krakousek3";
+//char* ssid;// = "Internet";
+//char* password;// = "3krakousek3";
 //const char* ssid = "Meizu";
 //const char* password = "123123123";
 const char* host = "85.93.125.205";
 bool succes = false;
 int pocetzlych = 0;
 int failedPosts = 0;
+int batteryCapacity=3600*1.02/100; //100 - percenta  1.02 - rezerva aby sme nepresiahli nad 100%
+ADC_MODE(ADC_VCC); //vcc read
 
 
 /*
@@ -94,10 +96,30 @@ void sendJsonData(String DeviceID, int BatteryLife, int state) {
 
 
 
-
 void getStatus() {
   int setup = -1;
+
+
   String DeviceID = getData("SN");
+  String ssid = getData("ssidWifi");
+  String password = getData("passwordWifi");
+
+
+  char charSsid[ssid.length()];
+  ssid.toCharArray(charSsid, ssid.length() + 1);
+  const char *ssidC = charSsid;
+  Serial.print("SSID: ");
+  Serial.println(ssidC);
+
+
+  //nastavi heslo AP
+  String stringPassword = getData("passwordAP");
+  char charPassword[password.length()];
+  password.toCharArray(charPassword, password.length() + 1);
+  char *passwordC = charPassword;
+  Serial.print("heslo: ");
+  Serial.println(passwordC);
+
   //String DeviceID = DeviceIdNoParse.substring(0,DeviceIdNoParse.length()-1);
   Serial.println(DeviceID);
   WiFiClient client;
@@ -114,10 +136,10 @@ void getStatus() {
   failedPosts = 0;
   pocetzlych = 0;
   Serial.println("Startuje sa wifi client mode");
-  Serial.printf("Connecting to %s ", ssid);
-  Serial.printf("Heslo: %s", password);
+  //Serial.printf("Connecting to %s ", ssid);
+  // Serial.printf("Heslo: %s", password);
   WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
+  WiFi.begin(ssidC, passwordC);
   while ((WiFi.status() != WL_CONNECTED) && (pocetzlych < 40))
   {
     delay(500);
@@ -424,8 +446,16 @@ void setup() {
   delay(1000);
   Serial.begin(115200);
   SPIFFS.begin();
+  /*
+    saveData("ssidWifi", "Sladkovicova 90210");
+    saveData("passwordWifi", "strcprst");
+    saveData("nazovAP", "ESP");
+    saveData("passwordAP", "123123123");
+  */
+
   getStatus();
   //saveData("mode", "1");  //0 - client
+
   /*
     saveData("nazovAP", "ESP");
     String naz = getData("nazovAP");
@@ -489,7 +519,8 @@ void setup() {
       }
       else {*/
     Serial.println("Connected to Wifi \n Sending data");
-    sendJsonData(getData("SN"), 93, 1);
+    int  vcc = ESP.getVcc()/batteryCapacity;  //vrati hodnotu v percentach  //na ESP 12E pridat konstantu *1.085 
+    sendJsonData(getData("SN"), vcc, 1);
     ESP.deepSleep(1000);//tu sa vlozi interval spanku
   }
 
@@ -531,55 +562,80 @@ void loop() {
           }
           //Serial.println(req);
           int val;
-          if (req.indexOf("/interval/0") != -1) {
+          /*
+            if (req.indexOf("/interval/0") != -1) {
             client.println(prepareHtmlPage("0"));
             setIntervalRestartu(0);
             break;
-          }
-          if (req.indexOf("/interval/1") != -1) {
+            }
+            if (req.indexOf("/interval/1") != -1) {
             client.println(prepareHtmlPage("1"));
             setIntervalRestartu(1);
             break;
-          }
-          if (req.indexOf("/interval/2") != -1) {
+            }
+            if (req.indexOf("/interval/2") != -1) {
             client.println(prepareHtmlPage("2"));
             setIntervalRestartu(2);
             break;
-          }
-          if (req.indexOf("/interval/3") != -1) {
+            }
+            if (req.indexOf("/interval/3") != -1) {
             client.println(prepareHtmlPage("3"));
             setIntervalRestartu(3);
             break;
-          }
-          if (req.indexOf("/interval/4") != -1) {
+            }
+            if (req.indexOf("/interval/4") != -1) {
             client.println(prepareHtmlPage("4"));
             setIntervalRestartu(4);
             break;
-          }
-          if (req.indexOf("/interval/5") != -1) {
+            }
+            if (req.indexOf("/interval/5") != -1) {
             client.println(prepareHtmlPage("5"));
             setIntervalRestartu(5);
             Serial.println("5");
 
             break;
-          }
-          if (req.indexOf("/interval/6") != -1) {
+            }
+            if (req.indexOf("/interval/6") != -1) {
             client.println(prepareHtmlPage("6"));
             setIntervalRestartu(6);
             break;
-          }
-          if (req.indexOf("/interval/7") != -1) {
+            }
+            if (req.indexOf("/interval/7") != -1) {
             client.println(prepareHtmlPage("7"));
             setIntervalRestartu(7);
             break;
-          }
+            }
 
+          */
           if (indexOfLine > 9 && indexOfLine < 11) {
             Serial.println(req);
             Serial.println("Mame JSONN!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
             makeJson(req);
-            client.println("HTTP/1.1 200 OK");
+            //client.println("HTTP/1.1 200 OK");
             //client.println("HTTP/1.1 500 Internal server error");
+
+
+            StaticJsonBuffer<200> jsonBuffer;
+            JsonObject& json = jsonBuffer.createObject();
+            json["Result"] = "ok";
+
+            json.printTo(Serial);
+            Serial.println();
+
+
+            Serial.println("[Sending a request]");
+
+            client.println("POST /newdata HTTP/1.1");
+            client.print("Host: ");
+            client.println(host);
+            client.println("Content-Type: application/json");
+            int length = json.measureLength();
+            client.print("Content-Length:"); client.println(length);
+            // End of headers
+            client.println();
+            String out;
+            json.printTo(out);
+            client.println(out);
             client.stop();
           }
 
@@ -627,29 +683,58 @@ void makeJson(String json) {
     Serial.println(buffer);
   */
 
-  StaticJsonBuffer<200> jsonBuffer;
+  StaticJsonBuffer<500> jsonBuffer;
   JsonObject& root = jsonBuffer.parseObject(json);
   Serial.print("Vypis stringu:");
   Serial.println(json);
   root.printTo(Serial);
   Serial.println();
 
-  
+
   const char* SN = root["SN"];
   const char* ssidWifi = root["ssidWifi"];
   const char* passwordWifi = root["passwordWifi"];
   const char* passwordAP = root["passwordAP"];
   const char* interval = root["interval"];
-  Serial.print("Moj vypis SN:");
-  Serial.println(SN);
-  Serial.print("Moj vypis ssidWifi:");
-  Serial.println(ssidWifi);
-  Serial.print("Moj vypis passwordWifi:");
-  Serial.println(passwordWifi);
-  Serial.print("Moj vypis passwordAP:");
-  Serial.println(passwordAP);
-  Serial.print("Moj vypis interval:");
-  Serial.println(interval);
+
+  String sSN = String(SN);
+  String sNazovAP = "ESP " + sSN.substring(sSN.length() - 6);
+  saveData("SN", SN);
+  saveData("nazovAP", sNazovAP);
+
+  
+  String sSsidWifi = String(ssidWifi);
+  String sPasswordWifi = String(passwordWifi);;
+  String sPasswordAP = String(passwordAP);
+  String sInterval = String(interval);
+
+  if (sSsidWifi.length() != 0) {
+    saveData("ssidWifi", ssidWifi);
+  }
+
+
+  if (sPasswordWifi.length() != 0) {
+    saveData("passwordWifi", passwordWifi);
+  }
+
+  if (sPasswordAP.length() != 0) {
+    saveData("passwordAP", passwordAP);
+  }
+
+
+  if (sInterval.length() != 0) {
+    //saveData("nazovAP", nazovAP);
+  }
+  else
+    Serial.println("0");
+
+
+  /*
+    saveData("SN", SN);
+    saveData("ssidWifi", ssidWifi);
+    saveData("passwordWifi", passwordWifi);
+    saveData("nazovAP", nazovAP);
+    saveData("passwordAP", passwordAP);*/
 }
 
 
